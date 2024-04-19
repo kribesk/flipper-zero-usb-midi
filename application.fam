@@ -1,14 +1,12 @@
 App(
     appid="usb_midi",
     name="USB Midi",
-    apptype=FlipperAppType.PLUGIN,
+    apptype=FlipperAppType.EXTERNAL,
     entry_point="usb_midi_app",
-    requires=[
-        "gui",
-    ],
     stack_size=4 * 1024,
-    order=20,
-    fap_icon="usb_midi.png",
-    fap_category="Misc",
-    fap_icon_assets="icons",
+    fap_category="Media",
+    fap_version=(0, 1),
+    fap_icon="assets/icon.png",
+    fap_description="Turn Flipper into MIDI instrument",
+    fap_icon_assets="assets",
 )

@@ -9,34 +9,7 @@
 #include "midi/parser.h"
 #include "midi/usb_message.h"
 
-char* NOTES[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-
-typedef struct {
-    int note;
-    int velocity;
-} Note;
-
-typedef struct {
-    int running;
-    FuriMessageQueue* events;
-    FuriThread* reader;
-    Gui* gui;
-    ViewPort* view_port;
-    FuriHalUsbInterface* usb_config_restore;
-    MidiParser* parser;
-    Note current_note;
-} UsbMidiApp;
-
-typedef enum {
-    UsbMidiEventTypeExit,
-    UsbMidiEventTypeNoteOn,
-    UsbMidiEventTypeNoteOff,
-} UsbMidiEventType;
-
-typedef struct {
-    UsbMidiEventType type;
-    Note note;
-} UsbMidiEvent;
+#include "usb_midi.h"
 
 static void draw_callback(Canvas* canvas, void* ctx) {
     furi_assert(ctx);
@@ -155,7 +128,6 @@ UsbMidiApp* usb_midi_app_alloc() {
     app->events = furi_message_queue_alloc(8, sizeof(UsbMidiEvent));
     app->running = 1;
     app->reader = furi_thread_alloc_ex("Reader", 4 * 1024, &usb_midi_app_reader, app);
-    furi_thread_start(app->reader);
 
     app->view_port = view_port_alloc();
     view_port_draw_callback_set(app->view_port, draw_callback, app);
@@ -186,27 +158,29 @@ void usb_midi_app_process_note_off(UsbMidiApp* app, Note note) {
 }
 
 int usb_midi_app_run(UsbMidiApp* app) {
+    furi_thread_start(app->reader);
+
     UsbMidiEvent event;
     while(1) {
         furi_check(furi_message_queue_get(app->events, &event, FuriWaitForever) == FuriStatusOk);
         if(event.type == UsbMidiEventTypeExit) {
-            return 0;
+            break;
         } else if(event.type == UsbMidiEventTypeNoteOn) {
             usb_midi_app_process_note_on(app, event.note);
         } else if(event.type == UsbMidiEventTypeNoteOff) {
             usb_midi_app_process_note_off(app, event.note);
         }
     }
+
+    app->running = 0;
+    furi_thread_join(app->reader);
+    return 0;
 }
 
 void usb_midi_app_free(UsbMidiApp* app) {
-    app->running = 0;
-    furi_thread_join(app->reader);
-
     gui_remove_view_port(app->gui, app->view_port);
     view_port_free(app->view_port);
     furi_record_close(RECORD_GUI);
-
     furi_message_queue_free(app->events);
     furi_hal_speaker_release();
 }
